@@ -121,6 +121,7 @@ ploidetect <- function(in_list, call_cna = F){
   }
   segs <- unlist(lapply(split(1:nrow(segmented_data), segmented_data$chr), function(x)1:length(x)))
   segmented_data$segment_depth <- segmented_data$corrected_depth
+  new_seg_data <- NULL
   
 
   for(d_diff in seq(from = min_dp, to = max_dp, length.out = 41)){
@@ -680,6 +681,11 @@ ploidetect <- function(in_list, call_cna = F){
     
     model_params <- rbind.data.frame(model_params, data.frame("modeling_tp" = d_diff, "depth_lik" = fit_stat, "maf_lik" = maf_scores$maf[1], "jitter" = em_sd, "tp" = maf_scores$tp[1], "ploidy" = maf_scores$ploidy[1], "n_imputed" = n_imputed))
   }
+
+  if(is.null(new_seg_data) || nrow(model_params) == 0){
+    out_models <- "No CNVs detected. Unable to estimate copy number"
+    return(list("model_info" = out_models, "plots" = exp_plots, "maxpeak" = maxpeak, "segmented_data" = segmented_data))
+  }
   
   #candidate_models <- model_params %>% group_by(npeaks) %>% summarise(rank = which.min(depth_lik), tp = tp[rank], depth_lik = depth_lik[rank], prop_unfit = prop_unfit[rank], jitter = jitter[rank], mean_bleed = mean_bleed[rank]) %>% select(-rank)
   metric <- abs(collected_sds - mads)
@@ -700,6 +706,11 @@ ploidetect <- function(in_list, call_cna = F){
   
   
   out_models <- model_params %>%  mutate(model_stat = (depth_lik * maf_lik * (1-(mads/mad(new_seg_data$corrected_depth))) * n50s/max_n50) * 1/(1 + n_imputed), order = 1:nrow(.)) %>% bind_cols(data.frame("seg_agreement" = metric)) %>% filter(tp > 0.05) %>% arrange(desc(model_stat)) %>% mutate(model_stat = model_stat/sum(model_stat)) 
+
+  if(nrow(out_models) == 0){
+    out_models <- "No CNVs detected. Unable to estimate copy number"
+    return(list("model_info" = out_models, "plots" = exp_plots, "maxpeak" = maxpeak, "segmented_data" = segmented_data))
+  }
   
   out_models$model_stat <- out_models$model_stat/sum(out_models$model_stat)
   
